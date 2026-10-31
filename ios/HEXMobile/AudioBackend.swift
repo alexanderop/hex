@@ -9,6 +9,22 @@ nonisolated enum AudioSystemEvent: Equatable, Sendable {
     case mediaServicesReset
 }
 
+/// Maps the recorder's average power to 0...1 for the level meters.
+///
+/// The session runs in measurement mode, which turns off input gain, so speech
+/// at arm's length averages around -40 to -25 dBFS. A quiet room sits near
+/// -55 dBFS and reads as silence.
+nonisolated enum MicLevel {
+    static let floorDecibels: Float = -52
+    static let ceilingDecibels: Float = -14
+
+    static func normalized(decibels: Float) -> Float {
+        guard decibels.isFinite else { return 0 }
+        let fraction = (decibels - floorDecibels) / (ceilingDecibels - floorDecibels)
+        return max(0, min(1, fraction))
+    }
+}
+
 @MainActor
 protocol ActiveAudioCapture: AnyObject {
     var url: URL { get }
@@ -60,8 +76,7 @@ private final class RecorderCaptureAdapter: NSObject, ActiveAudioCapture, AVAudi
 
     func normalizedPowerLevel() -> Float {
         recorder.updateMeters()
-        let decibels = recorder.averagePower(forChannel: 0)
-        return max(0, min(1, (decibels + 48) / 48))
+        return MicLevel.normalized(decibels: recorder.averagePower(forChannel: 0))
     }
 
     func stop() {

@@ -15,6 +15,15 @@ struct KeyboardSnapshotStage: View {
         return value.hasPrefix("keyboard-") ? value : nil
     }
 
+    /// `--snap-appearance light` renders the keyboard as it looks in a light-mode app.
+    private static var keyboardScheme: ColorScheme {
+        let args = ProcessInfo.processInfo.arguments
+        guard let idx = args.firstIndex(of: "--snap-appearance"), idx + 1 < args.count else {
+            return .dark
+        }
+        return args[idx + 1] == "light" ? .light : .dark
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
@@ -55,8 +64,11 @@ struct KeyboardSnapshotStage: View {
             Divider()
                 .overlay(HexTheme.borderWeak)
 
+            // Stand-in for the system keyboard backdrop, which the surface leaves clear.
             KeyboardSurfaceView(model: viewModel)
                 .frame(height: 148)
+                .background(.regularMaterial)
+                .environment(\.colorScheme, Self.keyboardScheme)
         }
         .background(Color(red: 0x07 / 255.0, green: 0x08 / 255.0, blue: 0x09 / 255.0).ignoresSafeArea())
         .preferredColorScheme(.dark)
@@ -69,7 +81,7 @@ struct KeyboardSnapshotStage: View {
         switch scene {
         case "keyboard-warm":
             "let's ship the iOS keyboard build tonight"
-        case "keyboard-recording":
+        case "keyboard-recording", "keyboard-recording-silent":
             "Sending over the TestFlight invite…"
         default:
             "Message"
@@ -77,7 +89,7 @@ struct KeyboardSnapshotStage: View {
     }
 
     private var composerTextIsPlaceholder: Bool {
-        scene != "keyboard-warm" && scene != "keyboard-recording"
+        !["keyboard-warm", "keyboard-recording", "keyboard-recording-silent"].contains(scene)
     }
 
     private func configureScene() {
@@ -113,6 +125,21 @@ struct KeyboardSnapshotStage: View {
                 expiresAt: now + 15 * 60,
                 recordingStartedAt: now - 5,
                 audioLevel: 0.78,
+                jobID: "snap-job"
+            )
+            for index in 0..<KeyboardLevelMeter.barCount {
+                let speech = 0.45 + 0.4 * sin(Double(index) * 0.9)
+                viewModel.recordLevel(index < 6 ? 0 : Float(max(0, speech)))
+            }
+
+        case "keyboard-recording-silent":
+            viewModel.style = .polished
+            viewModel.snapshot = KeyboardSnapshot(
+                state: .recording,
+                heartbeat: now - 0.05,
+                expiresAt: now + 15 * 60,
+                recordingStartedAt: now - 13,
+                audioLevel: 0,
                 jobID: "snap-job"
             )
 

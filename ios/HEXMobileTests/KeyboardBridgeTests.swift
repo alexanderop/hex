@@ -92,6 +92,27 @@ final class KeyboardBridgeTests: XCTestCase {
         XCTAssertEqual(KeyboardBridge(defaults: defaults).fullAccessSeenAt, 1_234)
     }
 
+    func testMicLevelTreatsAQuietRoomAsSilenceAndSpeechAsVisible() {
+        XCTAssertEqual(MicLevel.normalized(decibels: -160), 0)
+        XCTAssertEqual(MicLevel.normalized(decibels: -55), 0)
+        XCTAssertGreaterThan(MicLevel.normalized(decibels: -40), 0.25)
+        XCTAssertGreaterThan(MicLevel.normalized(decibels: -30), 0.5)
+        XCTAssertEqual(MicLevel.normalized(decibels: 0), 1)
+        XCTAssertEqual(MicLevel.normalized(decibels: -.infinity), 0)
+    }
+
+    @MainActor
+    func testKeyboardLevelHistoryScrollsNewestToTheRightAndResets() {
+        let model = KeyboardViewModel()
+        model.recordLevel(0.5)
+        model.recordLevel(2)
+        XCTAssertEqual(model.levelHistory.count, KeyboardLevelMeter.barCount)
+        XCTAssertEqual(model.levelHistory.suffix(2), [0.5, 1])
+
+        model.resetLevels()
+        XCTAssertTrue(model.levelHistory.allSatisfy { $0 == 0 })
+    }
+
     func testKeyboardRecordingLaunchRequiresAJob() {
         let url = URL(string: "hex-dictation://keyboard/record")!
         XCTAssertNil(KeyboardLaunchRequest(url: url))
